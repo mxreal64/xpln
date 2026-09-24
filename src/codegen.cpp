@@ -123,6 +123,12 @@ namespace xpln {
             }
             else if constexpr (std::is_same_v<T, ast::DeclareStmt>) {
                 for (const auto& decl : s.decls) {
+                    // Skip re-declaring parameter symbols that are passed by reference
+                    auto existing = symbol_table_.find(decl.name);
+                    if (existing != symbol_table_.end() && existing->second.type == "REF") {
+                        continue;
+                    }
+
                     int total_slots = 1;
                     if (decl.bounds) {
                         for (const auto& b : *decl.bounds) {
@@ -345,7 +351,6 @@ namespace xpln {
                     int int_val = static_cast<int>(std::atof(e.value.c_str()));
                     emit_inst("movq", std::format("${}, %rax", int_val));
                 } else if (e.lit_type == ast::LiteralExpr::Type::String) {
-                    // ALL string literals (including 1-char strings like 'A') emit string pointers
                     std::string lbl = add_string_literal(e.value);
                     emit_inst("leaq", std::format("{}(%rip), %rax", lbl));
                 } else {

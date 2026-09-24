@@ -1,0 +1,79 @@
+/* -------------------------------------------------------------------
+ * SAMPLE PL/I PROGRAM: STUDENT GRADE EVALUATOR
+ * Demonstrates: DECLARE, DO loops, IF/THEN/ELSE, SELECT, and Built-ins
+ * ------------------------------------------------------------------- */
+
+GRADE_SYSTEM: PROCEDURE OPTIONS(MAIN);
+
+    /* Variable declarations */
+    DECLARE (I, NUM_STUDENTS) FIXED BINARY;
+    DECLARE AVERAGE FLOAT;
+    DECLARE TOTAL_MARKS FIXED BINARY INITIAL(0);
+
+    /* Factored array declarations: 5 students (1-indexed bounds) */
+    DECLARE (MARKS(1:5)) FIXED BINARY;
+    DECLARE (NAMES(1:5)) CHARACTER(15) VARYING;
+    DECLARE (GRADES(1:5)) CHARACTER(1);
+
+    /* Initialize student data */
+    NAMES(1) = 'ALICE';
+    NAMES(2) = 'BOB';
+    NAMES(3) = 'CHARLIE';
+    NAMES(4) = 'DIANA';
+    NAMES(5) = 'EVE';
+
+    MARKS(1) = 92;
+    MARKS(2) = 78;
+    MARKS(3) = 64;
+    MARKS(4) = 88;
+    MARKS(5) = 51;
+
+    NUM_STUDENTS = 5;
+
+    PUT SKIP LIST('=== PL/I STUDENT GRADE EVALUATION ===');
+    PUT SKIP;
+
+    /* Loop through students, calculate letter grades, and sum totals */
+    DO I = 1 TO NUM_STUDENTS BY 1;
+
+        /* Sub-procedure call to determine letter grade */
+        CALL ASSIGN_GRADE(MARKS(I), GRADES(I));
+
+        TOTAL_MARKS = TOTAL_MARKS + MARKS(I);
+
+        /* Formatted output */
+        PUT SKIP EDIT(NAMES(I), ': ', MARKS(I), ' MARKS -> GRADE ', GRADES(I))
+                 (A(10), A(2), F(3), A(17), A(1));
+    END;
+
+    /* Compute and print average */
+    AVERAGE = TOTAL_MARKS / NUM_STUDENTS;
+    PUT SKIP(2) EDIT('CLASS AVERAGE: ', AVERAGE) (A(15), F(6, 2));
+
+    /* Conditional message based on class average */
+    IF AVERAGE >= 75.0 THEN DO;
+        PUT SKIP LIST('PERFORMANCE: EXCELLENT CLASS PERFORMANCE!');
+    END;
+    ELSE DO;
+        PUT SKIP LIST('PERFORMANCE: NEEDS IMPROVEMENT.');
+    END;
+
+    STOP;
+
+    /* --------------------------------------------------------------- *
+     * Internal Procedure: Maps numerical marks to letter grades       *
+     * --------------------------------------------------------------- */
+    ASSIGN_GRADE: PROCEDURE(MARK_VAL, GRADE_OUT);
+        DECLARE MARK_VAL FIXED BINARY;
+        DECLARE GRADE_OUT CHARACTER(1);
+
+        SELECT;
+            WHEN (MARK_VAL >= 90) GRADE_OUT = 'A';
+            WHEN (MARK_VAL >= 80) GRADE_OUT = 'B';
+            WHEN (MARK_VAL >= 70) GRADE_OUT = 'C';
+            WHEN (MARK_VAL >= 60) GRADE_OUT = 'D';
+            OTHERWISE             GRADE_OUT = 'F';
+        END;
+    END ASSIGN_GRADE;
+
+END GRADE_SYSTEM;

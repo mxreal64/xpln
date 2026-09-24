@@ -51,7 +51,6 @@ namespace xpln {
         std::vector<std::string> rodata_lines;
         rodata_lines.push_back("\t.section .rodata");
         rodata_lines.push_back(".LC_fmt_int:\t.string \"%ld \"");
-        rodata_lines.push_back(".LC_fmt_char:\t.string \"%c \"");
         rodata_lines.push_back(".LC_fmt_str:\t.string \"%s \"");
         rodata_lines.push_back(".LC_newline:\t.string \"\\n\"");
 
@@ -130,15 +129,18 @@ namespace xpln {
                             total_slots *= (b.high - b.low + 1);
                         }
                     }
-                    int offset = allocate_stack_space(8 * total_slots);
-                    symbol_table_[decl.name] = LocalSymbol{offset, decl.data_type};
+
+                    int first_slot_offset = -(current_stack_offset_ + 8);
+                    allocate_stack_space(8 * total_slots);
+
+                    symbol_table_[decl.name] = LocalSymbol{first_slot_offset, decl.data_type};
 
                     if (decl.init) {
                         gen_expr(decl.init);
-                        emit_inst("movq", std::format("%rax, {}(%rbp)", offset));
+                        emit_inst("movq", std::format("%rax, {}(%rbp)", first_slot_offset));
                     } else {
                         for (int i = 0; i < total_slots; ++i) {
-                            emit_inst("movq", std::format("$0, {}(%rbp)", offset - (i * 8)));
+                            emit_inst("movq", std::format("$0, {}(%rbp)", first_slot_offset - (i * 8)));
                         }
                     }
                 }
@@ -167,10 +169,10 @@ namespace xpln {
                     if (it != symbol_table_.end()) {
                         int base = it->second.stack_offset;
                         emit_inst("movq", "%rax, %rcx");
-                        emit_inst("movq", std::format("${}, %rax", base));
+                        emit_inst("leaq", std::format("{}(%rbp), %rax", base));
                         emit_inst("subq", "%rcx, %rax");
                         emit_inst("popq", "%rdx");
-                        emit_inst("movq", "%rdx, (%rbp, %rax)");
+                        emit_inst("movq", "%rdx, (%rax)");
                     }
                 }
             }
@@ -280,39 +282,28 @@ namespace xpln {
                 }
 
                 for (const auto& item : s.items) {
-                    bool is_char_var = false;
-                    bool is_string_lit = false;
+                    bool is_str = false;
 
                     if (auto* var = std::get_if<ast::VarExpr>(&item->data)) {
                         auto it = symbol_table_.find(var->name);
                         if (it != symbol_table_.end() && it->second.type.find("CHAR") != std::string::npos) {
-                            is_char_var = true;
+                            is_str = true;
                         }
                     } else if (auto* call = std::get_if<ast::CallOrIndexExpr>(&item->data)) {
                         auto it = symbol_table_.find(call->callee);
                         if (it != symbol_table_.end() && it->second.type.find("CHAR") != std::string::npos) {
-                            is_char_var = true;
+                            is_str = true;
                         }
                     } else if (auto* lit = std::get_if<ast::LiteralExpr>(&item->data); lit && lit->lit_type == ast::LiteralExpr::Type::String) {
-                        if (lit->value.length() > 1) {
-                            is_string_lit = true;
-                        } else {
-                            is_char_var = true;
-                        }
+                        is_str = true;
                     }
 
                     gen_expr(item);
 
-                    if (is_char_var) {
-                        // %rax contains an ASCII value (e.g. 65 for 'A') -> Print as character using %c
-                        emit_inst("movq", "%rax, %rsi");
-                        emit_inst("leaq", ".LC_fmt_char(%rip), %rdi");
-                    } else if (is_string_lit) {
-                        // %rax contains a pointer to .rodata -> Print as string using %s
+                    if (is_str) {
                         emit_inst("movq", "%rax, %rsi");
                         emit_inst("leaq", ".LC_fmt_str(%rip), %rdi");
                     } else {
-                        // Numeric values -> Print as integer using %ld
                         emit_inst("movq", "%rax, %rsi");
                         emit_inst("leaq", ".LC_fmt_int(%rip), %rdi");
                     }
@@ -354,7 +345,7 @@ namespace xpln {
                     int int_val = static_cast<int>(std::atof(e.value.c_str()));
                     emit_inst("movq", std::format("${}, %rax", int_val));
                 } else if (e.lit_type == ast::LiteralExpr::Type::String) {
-                    // Return string literal addresses in .rodata section
+                    // ALL string literals (including 1-char strings like 'A') emit string pointers
                     std::string lbl = add_string_literal(e.value);
                     emit_inst("leaq", std::format("{}(%rip), %rax", lbl));
                 } else {
@@ -434,9 +425,9 @@ namespace xpln {
 
                     int base = it->second.stack_offset;
                     emit_inst("movq", "%rax, %rcx");
-                    emit_inst("movq", std::format("${}, %rax", base));
+                    emit_inst("leaq", std::format("{}(%rbp), %rax", base));
                     emit_inst("subq", "%rcx, %rax");
-                    emit_inst("movq", "(%rbp, %rax), %rax");
+                    emit_inst("movq", "(%rax), %rax");
                 } else {
                     static const char* arg_regs[] = {"%rdi", "%rsi", "%rdx", "%rcx", "%r8", "%r9"};
                     for (size_t i = 0; i < e.args.size() && i < 6; ++i) {

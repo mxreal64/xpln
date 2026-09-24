@@ -1,8 +1,3 @@
-# ==============================================================================
-# PLIC - C++23 PL/I Compiler Makefile
-# ==============================================================================
-
-# Compiler & Linker Settings
 CXX          := g++
 CXXFLAGS     := -std=c++23 -Wall -Wextra -Wpedantic -Wconversion -Wshadow
 LDFLAGS      :=

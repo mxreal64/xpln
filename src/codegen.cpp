@@ -11,14 +11,6 @@ namespace xpln {
         return s;
     }
 
-    // NOTE: this used to special-case a hardcoded list of variable names
-    // ("pi", "radius", "area", ...) to force float typing — a workaround for
-    // a symptom, not the cause. The general path below already classifies
-    // any `DCL x FLOAT;` correctly, and PASS 1 in gen_procedure()
-    // re-classifies a by-reference parameter's kind once its real DCL is
-    // seen in the body (verified with `DCL x FLOAT;` and a by-reference
-    // float parameter under names *not* on that list). Deleting the hack
-    // fixes float variables that aren't spelled those exact six ways.
     static TypeKind parse_type_kind(const std::string& type_str, bool is_ref = false) {
         std::string t = type_str;
         std::transform(t.begin(), t.end(), t.begin(), ::toupper);

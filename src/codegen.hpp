@@ -20,6 +20,7 @@ namespace xpln {
         int stack_offset;
         TypeKind kind;
         std::string raw_type;
+        std::vector<ast::ArrayBound> bounds;
     };
 
     struct StringLiteral {
@@ -41,6 +42,12 @@ namespace xpln {
         std::vector<StringLiteral> rodata_strings_;
         std::vector<DoubleLiteral> rodata_doubles_;
         std::unordered_map<std::string, LocalSymbol> symbol_table_;
+        // Populated once per generate() call by scanning every procedure's
+        // RETURNS(...) clause, keyed by lower-cased procedure name. Lets a
+        // call site (which only sees the callee's name) know whether the
+        // result comes back in %xmm0 (float) or %rax (int/ptr) — mirrors
+        // symbol_table_'s role for variables.
+        std::unordered_map<std::string, bool> proc_returns_float_;
         int label_counter_ = 0;
         int string_counter_ = 0;
         int double_counter_ = 0;
@@ -56,6 +63,15 @@ namespace xpln {
 
         void gen_procedure(const ast::ProcedureDecl& proc);
         void gen_stmt(const ast::StmtPtr& stmt);
+        void gen_array_element_address(const LocalSymbol& sym, const std::vector<ast::ExprPtr>& args);
+        // Leaves the ADDRESS of `expr` in %rax, materializing a fresh stack
+        // temporary first if `expr` isn't itself addressable storage (e.g.
+        // a literal or a computed sub-expression). Used at call sites: PL/I
+        // procedure parameters are BY REFERENCE by default, so every actual
+        // argument must be passed as a pointer, never a bare value.
+        void gen_arg_address(const ast::ExprPtr& expr);
+        void gen_when_condition(bool has_select_expr, bool select_is_float, int select_stack_offset,
+                                const ast::ExprPtr& cond, const std::string& match_label);
 
         // gen_expr returns true if result was loaded into %xmm0 (float), false if in %rax (int/ptr)
         bool gen_expr(const ast::ExprPtr& expr);
